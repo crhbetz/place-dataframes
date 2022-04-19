@@ -1,0 +1,20 @@
+[global]
+# general working directory
+dir = /home/user/analyzer
+# where produced pictures should be stored
+imgdir = /home/user/images
+# where the pictures would be publicly available (no trailing slash; optional)
+imgurl = https://place.user.site
+# max number of threads for finding the user id (limited by RAM, used over 24GB with more than 2 workers)
+uidworkers = 2
+# max number of threads for getting info about pixels (limited by RAM, used over 24GB with more than 4 workers)
+pixelworkers = 4
+
+[original]
+# where your original data is / should be stored
+unofficial = /home/user/analyzer/unofficial
+
+[compressed]
+# where your compressed data is / should be stored
+official = /home/user/analyzer/official-compressed
+unofficial = /home/user/analyzer/unofficial-compressed
