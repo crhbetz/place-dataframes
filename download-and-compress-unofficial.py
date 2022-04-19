@@ -175,10 +175,17 @@ def parse_stream(r, filename):
                     pixels = elem.lstrip("p").replace("x", ",")
                     x, y = pixels.split(",")
 
+                    if "c" in y:
+                        y, canvas = y.split("c")
+                        if int(canvas) in [1, 3]:
+                            x = int(x) + 1000
+                        if int(canvas) in [2, 3]:
+                            y = int(y) + 1000
+
                     ts = float(j["data"][elem]["data"][0]["data"]["lastModifiedTimestamp"])
                     new_time = int(ts - start)
 
-                    out.append(f"{new_time},{new_user},{x},{y}")
+                    out.append(f"{new_time},{new_user},{int(x)},{int(y)}")
                 except Exception:
                     continue
         except Exception:

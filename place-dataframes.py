@@ -447,21 +447,20 @@ class PlaceData():
                 # 25 samples seem to be enough to be sure
                 try:
                     dataset = udf.iloc[i]
-                    # TODO: coordinates could potentially contain the canvas notation from the unofficial data,
-                    # try to catch this here for now
-                    try:
-                        int(dataset.pixel_x)
-                        int(dataset.pixel_y)
-                    except Exception:
-                        i += 1
-                        continue
                     tslow = int(dataset.timestamp / 1000) * 1000
                     tshigh = tslow + 1000
-                    # TODO: because I was too lazy to correctly parse the canvas notation in the unofficial dataset,
-                    # the coordinates are only 0 <= x <= 1000 and could be on any of the four canvas parts
-                    query = (f"timestamp >= {tslow} and timestamp < {tshigh} and "
-                             f"(pixel_x == {dataset.pixel_x} or pixel_x == 1{dataset.pixel_x}) and "
-                             f"(pixel_y == {dataset.pixel_y} or pixel_y == 1{dataset.pixel_x})")
+
+                    # coordinates of the canvas expansions are inconsistent in the unofficial data, meaning
+                    # if the coordinate is below 1000, it could actually have been x + 1000
+                    query = f"timestamp >= {tslow} and timestamp < {tshigh} and "
+                    if dataset.pixel_x < 1000:
+                        query += f"(pixel_x == {dataset.pixel_x} or pixel_x == {dataset.pixel_x + 1000}) and "
+                    else:
+                        query += f"pixel_x == {dataset.pixel_x} and "
+                    if dataset.pixel_y < 1000:
+                        query += f"(pixel_y == {dataset.pixel_y} or pixel_y == {dataset.pixel_y + 1000})"
+                    else:
+                        query += f"pixel_y == {dataset.pixel_y}"
                     logger.debug(f"string to query: {query}")
                     jobs.append(executor.submit(self.get_rows_by_expression, query))
                     i += 1
