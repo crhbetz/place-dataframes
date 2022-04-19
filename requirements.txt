@@ -1,0 +1,8 @@
+colory==0.2
+dask==2022.4.0
+numpy==1.22.3
+pandas==1.4.2
+Pillow==9.1.0
+python_dateutil==2.8.2
+requests==2.27.1
+tqdm==4.64.0
