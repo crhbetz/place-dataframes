@@ -447,9 +447,17 @@ class PlaceData():
                 # 25 samples seem to be enough to be sure
                 try:
                     dataset = udf.iloc[i]
+                    # TODO: coordinates could potentially contain the canvas notation from the unofficial data,
+                    # try to catch this here for now
+                    try:
+                        int(dataset.pixel_x)
+                        int(dataset.pixel_y)
+                    except Exception:
+                        i += 1
+                        continue
                     tslow = int(dataset.timestamp / 1000) * 1000
                     tshigh = tslow + 1000
-                    # because I was too lazy to correctly parse the canvas notation in the unofficial dataset,
+                    # TODO: because I was too lazy to correctly parse the canvas notation in the unofficial dataset,
                     # the coordinates are only 0 <= x <= 1000 and could be on any of the four canvas parts
                     query = (f"timestamp >= {tslow} and timestamp < {tshigh} and "
                              f"(pixel_x == {dataset.pixel_x} or pixel_x == 1{dataset.pixel_x}) and "
