@@ -783,9 +783,17 @@ class PlaceData():
         pixels = self.get_rows_by_username(username)
         response["pixels"] = json.loads(pixels.to_json(orient="records"))
 
-        # first and last pixels
-        response["first_pixel"] = json.loads(pixels.iloc[0].to_json(orient="records"))
-        response["last_pixel"] = json.loads(pixels.iloc[-1].to_json(orient="records"))
+        # first and last pixels - align formatting manually here because iloc is just a blank row
+        first_pixel = json.loads(pixels.iloc[0].to_json(orient="records"))
+        response["first_pixel"] = {"timestamp": first_pixel[0] + start,
+                                   "pixel_color": self.hexmap[first_pixel[2]],
+                                   "pixel_x": first_pixel[3],
+                                   "pixel_y": first_pixel[4]}
+        last_pixel = json.loads(pixels.iloc[-1].to_json(orient="records"))
+        response["last_pixel"] = {"timestamp": last_pixel[0] + start,
+                                   "pixel_color": self.hexmap[last_pixel[2]],
+                                   "pixel_x": last_pixel[3],
+                                   "pixel_y": last_pixel[4]}
 
         # pixels touched as first user
         response["first_pixels"] = json.loads(self.get_first_pixels_by_username(username).to_json(orient="records"))
