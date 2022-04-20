@@ -7,6 +7,7 @@ import logging
 import sys
 import configparser
 import os
+import json
 from colory.color import Color
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -545,7 +546,7 @@ class PlaceData():
                 if lnum % 10000 == 0:
                     logger.debug(f"line {lnum} ...")
                 if str(uid) in line:
-                    hash = line.split(":")[0].strip().rstrip(",")
+                    hash = line.split(":")[0].strip().rstrip(",").strip('"')
                     logger.debug(f"found hash in official usermap file line {lnum}: {hash}")
                     return hash
         return None
@@ -647,20 +648,38 @@ class PlaceData():
         else:
             return pd.DataFrame()
 
-    def analyze_user(self, username=None, list_pixels=False):
+    def analyze_user(self, username=None, json=False, list_pixels=False):
         # wrapper to get the text summary + all implemented pictures for one username or a list of usernames
         if username is None:
             return None
         username = self.strip_username(username)
 
-        # get_summary returns bool depending on if username could be matched to official data or not
-        ret = self.get_summary(username, list_pixels)
-        if ret:
-            print()
-            self.generate_first_pixels_dark(username, True)
-            self.generate_final_pixels_dark(username, True)
-            self.generate_all_pixels_dark_pre_whiteout(username, True)
-            self.generate_all_pixels_dark_during_whiteout(username, True)
+        # get_(json_)summary returns bool depending on if username could be matched to official data or not
+        if json:
+            ret = self.get_json_summary(username)
+            if ret:
+                ret["first_img"] = self.generate_first_pixels_dark(username)
+                ret["final_img"] = self.generate_final_pixels_dark(username)
+                ret["all_pixels_pre_whiteout_img"] = self.generate_all_pixels_dark_pre_whiteout(username)
+                ret["all_pixels_during_whiteout_img"] = self.generate_all_pixels_dark_during_whiteout(username)
+
+                # drop empty elements
+                new_ret = {}
+                for elem in ret:
+                    if not (ret[elem] is False or ret[elem] is None):
+                        new_ret[elem] = ret[elem]
+                ret = new_ret
+
+            return ret
+
+        else:
+            ret = self.get_summary(username, list_pixels)
+            if ret:
+                print()
+                self.generate_first_pixels_dark(username, True)
+                self.generate_final_pixels_dark(username, True)
+                self.generate_all_pixels_dark_pre_whiteout(username, True)
+                self.generate_all_pixels_dark_during_whiteout(username, True)
 
     def get_summary(self, username=None, list_pixels=False):
         # print copy-pasteable summary to console
@@ -739,73 +758,162 @@ class PlaceData():
                       f"{' '.join(survived)} until the whiteout!")
         return True
 
-    def generate_first_pixels_dark(self, username=None, summary=False):
+    def get_json_summary(self, username=None):
+        # initialize and print hash
+        response = {}
+        username = self.strip_username(username)
+        response["username"] = self.printuser(username)
+
+        official_uid = self.get_official_uid_by_username(username)
+        if not official_uid:
+            logger.warning(f"Unable to match {username} to the official dataset. No analysis possible. :(")
+            return False
+        logger.debug(f"Official ID: {official_uid}")
+
+        response["hash"] = {}
+        if not isinstance(username, list):
+            uhash = self.get_hash_by_official_uid(official_uid)
+            response["hash"][username] = uhash
+        else:
+            for u in username:
+                uhash = self.get_hash_by_official_uid(self.get_official_uid_by_username(u))
+                response["hash"][u] = uhash
+
+        # get and count all pixels
+        pixels = self.get_rows_by_username(username)
+        response["pixels"] = json.loads(pixels.to_json(orient="records"))
+
+        # first and last pixels
+        response["first_pixel"] = json.loads(pixels.iloc[0].to_json(orient="records"))
+        response["last_pixel"] = json.loads(pixels.iloc[-1].to_json(orient="records"))
+
+        # pixels touched as first user
+        response["first_pixels"] = json.loads(self.get_first_pixels_by_username(username).to_json(orient="records"))
+
+        # pixels during whiteout
+        response["during_whiteout"] = json.loads(pixels.query(f"timestamp >= {whiteout_short} and pixel_color == 7")
+                                                       .to_json(orient="records"))
+
+        # pixels on the final canvas before whiteout started
+        response["pixels_on_final_canvas"] = json.loads(self.get_final_pixels_by_username(username)
+                                                        .to_json(orient="records"))
+
+        # cleanup
+        for elem in ["pixels", "first_pixels", "during_whiteout", "pixels_on_final_canvas"]:
+            new_list = []
+            for pixel in response[elem]:
+                pixel["timestamp"] = pixel["timestamp"] + start
+                pixel["pixel_color"] = self.hexmap[pixel["pixel_color"]]
+                if "user_id" in pixel:
+                    del pixel["user_id"]
+                if "count" in pixel:
+                    del pixel["count"]
+                new_list.append(pixel)
+            response[elem] = new_list
+
+        return response
+
+    def generate_first_pixels_dark(self, username=None, summary=False, force=False):
         # highlight the pixels the user(s) touched first on a darkened canvas
-        username = self.strip_username(username)
-        img = Image.open(os.path.join(self.cwd, "final_place.png"))
-        sample = img.copy()
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(0.3)
-        pixels = self.get_first_pixels_by_username(username)
-        if pixels.empty:
-            return False
-        self.generate_image(sample, img, pixels, None, 2, 0, f"{self.printuser(username)}-first.png", summary)
+        filename = f"{self.printuser(username)}-first.png"
+        if not os.path.isfile(os.path.join(self.imgdir, filename)) or force:
+            username = self.strip_username(username)
+            img = Image.open(os.path.join(self.cwd, "final_place.png"))
+            sample = img.copy()
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(0.3)
+            pixels = self.get_first_pixels_by_username(username)
+            if pixels.empty:
+                return False
+            self.generate_image(sample, img, pixels, None, 2, 0, filename, summary)
         if summary:
-            self.print_img_summary("Image of pixels you touched first: {}-first.png", username)
+            self.print_img_summary("Image of pixels you touched first: {}", filename)
+            return True
+        else:
+            if self.imgurl:
+                return f"{self.imgurl}/{filename}"
+            else:
+                return True
 
-    def generate_final_pixels_dark(self, username=None, summary=False):
+    def generate_final_pixels_dark(self, username=None, summary=False, force=False):
         # highlight the pixels the user(s) had placed that remained until before the whiteout, on a darkened canvas
-        username = self.strip_username(username)
-        img = Image.open(os.path.join(self.cwd, "final_place.png"))
-        sample = img.copy()
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(0.3)
-        pixels = self.get_final_pixels_by_username(username)
-        if pixels.empty:
-            return False
-        self.generate_image(sample, img, pixels, None, 2, 0, f"{self.printuser(username)}-final.png", summary)
+        filename = f"{self.printuser(username)}-final.png"
+        if not os.path.isfile(os.path.join(self.imgdir, filename)) or force:
+            username = self.strip_username(username)
+            img = Image.open(os.path.join(self.cwd, "final_place.png"))
+            sample = img.copy()
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(0.3)
+            pixels = self.get_final_pixels_by_username(username)
+            if pixels.empty:
+                return False
+            self.generate_image(sample, img, pixels, None, 2, 0, filename, summary)
         if summary:
-            self.print_img_summary("Image of pixels on the final canvas: {}-final.png", username)
+            self.print_img_summary("Image of pixels on the final canvas: {}", filename)
+            return True
+        else:
+            if self.imgurl:
+                return f"{self.imgurl}/{filename}"
+            else:
+                return True
 
-    def generate_all_pixels_dark_pre_whiteout(self, username=None, summary=False):
+    def generate_all_pixels_dark_pre_whiteout(self, username=None, summary=False, force=False):
         # highlight all pixels the user(s) ever touched, in the last color they used, before the whiteout,
         # on a darkened canvas
-        username = self.strip_username(username)
-        img = Image.open(os.path.join(self.cwd, "final_place.png"))
-        sample = img.copy()
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(0.3)
-        query = f"timestamp < {whiteout_short}"
-        pixels = self.get_rows_by_username(username).query(query).value_counts(ascending=True).reset_index(name='count')
-        if pixels.empty:
-            return False
-        logger.debug(pixels)
-        self.generate_image(sample, img, pixels, None, 1, 0, f"{self.printuser(username)}-all.png", summary)
+        filename = f"{self.printuser(username)}-all.png"
+        if not os.path.isfile(os.path.join(self.imgdir, filename)) or force:
+            username = self.strip_username(username)
+            img = Image.open(os.path.join(self.cwd, "final_place.png"))
+            sample = img.copy()
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(0.3)
+            query = f"timestamp < {whiteout_short}"
+            pixels = self.get_rows_by_username(username).query(query).value_counts(ascending=True) \
+                                                        .reset_index(name='count')
+            if pixels.empty:
+                return False
+            logger.debug(pixels)
+            self.generate_image(sample, img, pixels, None, 1, 0, filename, summary)
         if summary:
-            self.print_img_summary("Image of all edited pixels before the whiteout (in the last color you placed): "
-                                   "{}-all.png", username)
-
-    def generate_all_pixels_dark_during_whiteout(self, username=None, summary=False):
-        # highlight all pixels the user(s) replaced with white during the whiteout on a darkened (pre-whiteout) canvas
-        username = self.strip_username(username)
-        img = Image.open(os.path.join(self.cwd, "final_place.png"))
-        sample = img.copy()
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(0.3)
-        query = f"timestamp >= {whiteout_short}"
-        pixels = self.get_rows_by_username(username).query(query).value_counts(ascending=True).reset_index(name='count')
-        if pixels.empty:
-            return False
-        logger.debug(pixels)
-        self.generate_image(sample, img, pixels, None, 1, 0, f"{self.printuser(username)}-whiteout.png", summary)
-        if summary:
-            self.print_img_summary("Image of all edited pixels during the whiteout: {}-whiteout.png", username)
-
-    def print_img_summary(self, text, username):
-        if self.imgurl:
-            print(text.format(f"{self.imgurl}/{self.printuser(username)}"))
+            self.print_img_summary("Image of all edited pixels before the whiteout (in the last color you placed): {}",
+                                   filename)
+            return True
         else:
-            print(text.format(f"{self.imgdir}/{self.printuser(username)}"))
+            if self.imgurl:
+                return f"{self.imgurl}/{filename}"
+            else:
+                return True
+
+    def generate_all_pixels_dark_during_whiteout(self, username=None, summary=False, force=False):
+        # highlight all pixels the user(s) replaced with white during the whiteout on a darkened (pre-whiteout) canvas
+        filename = f"{self.printuser(username)}-whiteout.png"
+        if not os.path.isfile(os.path.join(self.imgdir, filename)) or force:
+            username = self.strip_username(username)
+            img = Image.open(os.path.join(self.cwd, "final_place.png"))
+            sample = img.copy()
+            enhancer = ImageEnhance.Brightness(img)
+            img = enhancer.enhance(0.3)
+            query = f"timestamp >= {whiteout_short}"
+            pixels = self.get_rows_by_username(username).query(query).value_counts(ascending=True) \
+                                                        .reset_index(name='count')
+            if pixels.empty:
+                return False
+            logger.debug(pixels)
+            self.generate_image(sample, img, pixels, None, 1, 0, filename, summary)
+        if summary:
+            self.print_img_summary("Image of all edited pixels during the whiteout: {}", filename)
+            return True
+        else:
+            if self.imgurl:
+                return f"{self.imgurl}/{filename}"
+            else:
+                return True
+
+    def print_img_summary(self, text, filename):
+        if self.imgurl:
+            print(text.format(f"{self.imgurl}/{filename}"))
+        else:
+            print(text.format(f"{self.imgdir}/{filename}"))
 
     def generate_image(self, sample_img, edit_img, pixels, highlight_color, highlight_radius, highlight_border,
                        filepath, summary=False):
