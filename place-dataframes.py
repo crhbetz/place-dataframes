@@ -327,11 +327,11 @@ class PlaceData():
 
     def get_rows_by_coords(self, x=None, y=None):
         # returns dataframe of rows matched by coordinates
-        if x and y:
+        if x is not None and y is not None:
             return self.official[(self.official["pixel_x"] == x) & (self.official["pixel_y"] == y)]
-        elif x:
+        elif x is not None:
             return self.official[(self.official["pixel_x"] == x)]
-        elif y:
+        elif y is not None:
             return self.official[(self.official["pixel_y"] == y)]
         else:
             return pd.DataFrame()
@@ -363,15 +363,26 @@ class PlaceData():
         # returns dataframe containing 1 row, which is the last edit of the given pixel (or empty if invalid input)
         if x is None or y is None:
             return pd.DataFrame()
-        df = self.get_rows_by_coords(x, y).sort_values(by="timestamp")
-        return df.iloc[-1:]
+        try:
+            df = self.get_rows_by_coords(x, y).sort_values(by="timestamp")
+            return df.iloc[-1:]
+        except Exception as e:
+            logger.warning(f"get_last_edit: Exception trying to get rows/sort by timestamp. DataFrame dump follows")
+            print(self.get_rows_by_coords(x, y).to_string())
+            return pd.DataFrame()
 
     def get_first_edit(self, x=None, y=None):
         # returns dataframe containing 1 row, which is the first edit of the given pixel (or empty if invalid input)
         if x is None or y is None:
             return pd.DataFrame()
-        df = self.get_rows_by_coords(x, y).sort_values(by="timestamp")
-        return df.iloc[0:1]
+        try:
+            df = self.get_rows_by_coords(x, y).sort_values(by="timestamp")
+            return df.iloc[0:1]
+        except Exception as e:
+            logger.warning(f"get_first_edit: Exception trying to get rows/sort by timestamp. DataFrame dump follows")
+            print(self.get_rows_by_coords(x, y).to_string())
+            return pd.DataFrame()
+
 
     def get_last_edit_before_whiteout(self, x=None, y=None):
         # returns dataframe containing 1 row, which is the last edit of the pixel before the whiteout started
