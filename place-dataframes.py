@@ -504,11 +504,11 @@ class PlaceData():
             return False
 
     def strip_username(self, username=None):
-        # Sanitize usernames: remove slash-parts used on reddit
+        # Sanitize usernames: remove slash-parts used on reddit and convert to lowercase
         if isinstance(username, str):
-            return username.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/")
+            return username.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/").lower()
         elif isinstance(username, list):
-            return [x.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/") for x in username]
+            return [x.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/").lower() for x in username]
         else:
             return None
 
@@ -540,6 +540,7 @@ class PlaceData():
             return cache
         with open(os.path.join(self.unofficial_compressed, "users"), "r") as f:
             for line in f:
+                line = line.lower()
                 if f"\"{username}\"" in line:
                     uid = int(line.split(":")[1].strip().rstrip(","))
                     logger.debug(f"found uid in unofficial usermap file: {uid}")
