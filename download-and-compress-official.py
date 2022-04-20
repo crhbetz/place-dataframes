@@ -52,7 +52,7 @@ colors = {
 }
 user_i = 0
 
-for i in tqdm(range(78), desc="Processing official files", position=0, leave=False):
+for i in tqdm(range(79), desc="Processing official files", position=0, leave=False):
     out = ["timestamp,user_id,pixel_color,pixel_x,pixel_y"]
     n = f"{i:02d}"
     url = f"https://placedata.reddit.com/data/canvas-history/2022_place_canvas_history-0000000000{n}.csv.gzip"
