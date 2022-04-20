@@ -538,7 +538,7 @@ class PlaceData():
 
     def get_hash_by_official_uid(self, uid):
         # return the full reddit supplied hash value for a given compressed user id
-        logger.debug(f"search hash for uid: {uid}")
+        logger.debug(f"search hash for uid: {uid} in {os.path.join(self.official_compressed, 'users')}")
         lnum = 0
         with open(os.path.join(self.official_compressed, "users"), "r") as f:
             for line in f:
@@ -658,17 +658,18 @@ class PlaceData():
         if json:
             ret = self.get_json_summary(username)
             if ret:
-                ret["first_img"] = self.generate_first_pixels_dark(username)
-                ret["final_img"] = self.generate_final_pixels_dark(username)
-                ret["all_pixels_pre_whiteout_img"] = self.generate_all_pixels_dark_pre_whiteout(username)
-                ret["all_pixels_during_whiteout_img"] = self.generate_all_pixels_dark_during_whiteout(username)
+                ret["images"] = {}
+                ret["images"]["first_img"] = self.generate_first_pixels_dark(username)
+                ret["images"]["final_img"] = self.generate_final_pixels_dark(username)
+                ret["images"]["all_pixels_pre_whiteout_img"] = self.generate_all_pixels_dark_pre_whiteout(username)
+                ret["images"]["all_pixels_during_whiteout_img"] = self.generate_all_pixels_dark_during_whiteout(username)
 
-                # drop empty elements
-                new_ret = {}
-                for elem in ret:
-                    if not (ret[elem] is False or ret[elem] is None):
-                        new_ret[elem] = ret[elem]
-                ret = new_ret
+                # drop non-existing images
+                new_images = {}
+                for elem in ret["images"]:
+                    if not (ret["images"][elem] is False or ret["images"][elem] is None):
+                        new_images[elem] = ret["images"][elem]
+                ret["images"] = new_images
 
             return ret
 
