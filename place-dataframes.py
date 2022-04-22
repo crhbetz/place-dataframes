@@ -305,6 +305,13 @@ class PlaceData():
             ouid = self.__internal_get_ouid(username)
         return self._get_rows_by_uid(ouid)
 
+    def get_color_ranking_by_username(self, username=None):
+        # returns DataFrame containing the ranking of colors most used by the user(s)
+        if username is None:
+            return pd.DataFrame()
+        pixels = self.get_rows_by_username(username)
+        return pixels["pixel_color"].value_counts()
+
     def __internal_get_ouid(self, username):
         # get official uid from cache or pass to get_official_uid_by_username to determine and cache it
         ouid = self.cache.get(username, "ouid")
@@ -769,6 +776,15 @@ class PlaceData():
                 print(f"Pixel {pixel.pixel_x},{pixel.pixel_y} set at {timestring} GMT, color "
                       f"{self.colormap[pixel.pixel_color].name} ({self.hexmap[pixel.pixel_color]}) - survived "
                       f"{' '.join(survived)} until the whiteout!")
+
+        # color ranking
+        print()
+        print("Ranking of the colors you used:")
+        ranking = self.get_color_ranking_by_username(username)
+        rank = 1
+        for color, number in ranking.items():
+            print(f"Rank {rank}: {self.colormap[color].name} ({self.hexmap[color]}) used {number} times")
+            rank += 1
         return True
 
     def get_json_summary(self, username=None):
@@ -818,6 +834,18 @@ class PlaceData():
         # pixels on the final canvas before whiteout started
         response["pixels_on_final_canvas"] = json.loads(self.get_final_pixels_by_username(username)
                                                         .to_json(orient="records"))
+
+        # color ranking
+        ranking = self.get_color_ranking_by_username(username)
+        rank = 1
+        ranklist = []
+        for color, number in ranking.items():
+            elem = {"rank": rank,
+                    "color": self.hexmap[color],
+                    "number": number}
+            ranklist.append(elem)
+            rank += 1
+        response["color_ranking"] = ranklist
 
         # cleanup
         for elem in ["pixels", "first_pixels", "during_whiteout", "pixels_on_final_canvas"]:
