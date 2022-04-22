@@ -506,9 +506,9 @@ class PlaceData():
     def strip_username(self, username=None):
         # Sanitize usernames: remove slash-parts used on reddit and convert to lowercase
         if isinstance(username, str):
-            return username.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/").lower()
+            return username.replace("/u/", "").replace("u/", "").strip("/").lower()
         elif isinstance(username, list):
-            return [x.lstrip("/u/").lstrip("u/").lstrip("/").rstrip("/").lower() for x in username]
+            return [x.replace("/u/", "").replace("u/", "").strip("/").lower() for x in username]
         else:
             return None
 
